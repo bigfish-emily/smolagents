@@ -83,6 +83,7 @@ class AgentImage(AgentType, PIL.Image.Image):
         self._path = None
         self._raw = None
         self._tensor = None
+        self._numpy = None
 
         if isinstance(value, AgentImage):
             self._raw, self._path, self._tensor = value._raw, value._path, value._tensor
@@ -103,9 +104,21 @@ class AgentImage(AgentType, PIL.Image.Image):
                 if isinstance(value, np.ndarray):
                     self._tensor = torch.from_numpy(value)
             except ModuleNotFoundError:
-                pass
+                # numpy or torch unavailable: keep numpy arrays usable without torch
+                try:
+                    import numpy as np
 
-        if self._path is None and self._raw is None and self._tensor is None:
+                    if isinstance(value, np.ndarray):
+                        self._numpy = value
+                except ModuleNotFoundError:
+                    pass
+
+        if (
+            self._path is None
+            and self._raw is None
+            and self._tensor is None
+            and self._numpy is None
+        ):
             raise TypeError(f"Unsupported type for {self.__class__.__name__}: {type(value)}")
 
     def _ipython_display_(self, include=None, exclude=None):
@@ -127,11 +140,11 @@ class AgentImage(AgentType, PIL.Image.Image):
             self._raw = PIL.Image.open(self._path)
             return self._raw
 
-        if self._tensor is not None:
+        if self._tensor is not None or self._numpy is not None:
             import numpy as np
 
-            array = self._tensor.cpu().detach().numpy()
-            return PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+            array = self._tensor.cpu().detach().numpy() if self._tensor is not None else self._numpy
+            return PIL.Image.fromarray((array * 255).astype(np.uint8))
 
     def to_string(self):
         """
@@ -147,13 +160,13 @@ class AgentImage(AgentType, PIL.Image.Image):
             self._raw.save(self._path, format="png")
             return self._path
 
-        if self._tensor is not None:
+        if self._tensor is not None or self._numpy is not None:
             import numpy as np
 
-            array = self._tensor.cpu().detach().numpy()
+            array = self._tensor.cpu().detach().numpy() if self._tensor is not None else self._numpy
 
             # There is likely simpler than load into image into save
-            img = PIL.Image.fromarray((255 - array * 255).astype(np.uint8))
+            img = PIL.Image.fromarray((array * 255).astype(np.uint8))
 
             directory = tempfile.mkdtemp()
             self._path = os.path.join(directory, str(uuid.uuid4()) + ".png")
