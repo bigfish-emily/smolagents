@@ -122,17 +122,32 @@ class TestAgentImage:
         assert array[0, 0].tolist() == [0, 0, 0]
         assert array[0, 1].tolist() == [255, 255, 255]
 
-    def test_from_numpy_array(self):
+    def test_from_tensor_to_string_is_not_inverted(self):
+        import numpy as np
+        import torch
+
+        tensor = torch.tensor(
+            [[[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]],
+            dtype=torch.float32,
+        )
+        agent_type = AgentImage(tensor)
+        path = agent_type.to_string()
+        array = np.asarray(PIL.Image.open(path))
+
+        assert array[0, 0].tolist() == [0, 0, 0]
+        assert array[0, 1].tolist() == [255, 255, 255]
+
+    def test_from_numpy_array_preserves_uint8_values(self):
         import numpy as np
 
         array = np.array(
-            [[[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]],
-            dtype=np.float32,
+            [[[0, 64, 128], [255, 255, 255]]],
+            dtype=np.uint8,
         )
         agent_type = AgentImage(array)
         raw = np.asarray(agent_type.to_raw())
 
-        assert raw[0, 0].tolist() == [0, 0, 0]
+        assert raw[0, 0].tolist() == [0, 64, 128]
         assert raw[0, 1].tolist() == [255, 255, 255]
 
     def test_from_numpy_array_without_torch(self):
@@ -155,7 +170,7 @@ class TestAgentImage:
         with mock.patch("builtins.__import__", side_effect=import_without_torch):
             agent_type = AgentImage(array)
 
-        assert agent_type._numpy is array
+        assert agent_type._array is array
         raw = np.asarray(agent_type.to_raw())
         assert raw[0, 0].tolist() == [0, 0, 0]
         assert raw[0, 1].tolist() == [255, 255, 255]
